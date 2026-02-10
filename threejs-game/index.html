@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Echoes of Elyria — Echo Orb Collector</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #0a0a0f; font-family: 'Segoe UI', system-ui, sans-serif; }
+    #canvas { display: block; }
+    #ui {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+      color: #e8dcc4;
+      pointer-events: none;
+    }
+    #score { font-size: 1.25rem; font-weight: 600; }
+    #hint {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(232, 220, 196, 0.7);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <span id="score">Echo Orbs: 0 / 8</span>
+  </div>
+  <canvas id="canvas"></canvas>
+  <div id="hint">WASD — move · Mouse — look around · Find all 8 orbs</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const canvas = document.getElementById('canvas');
+    const scoreEl = document.getElementById('score');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a12);
+    scene.fog = new THREE.FogExp2(0x0a0a12, 0.04);
+
+    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+    camera.position.set(0, 4, 12);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Lighting — mystical twilight
+    const amb = new THREE.AmbientLight(0x2a2540, 0.6);
+    scene.add(amb);
+    const dir = new THREE.DirectionalLight(0xe8dcc4, 0.9);
+    dir.position.set(8, 15, 6);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.camera.near = 0.5;
+    dir.shadow.camera.far = 50;
+    dir.shadow.camera.left = -20;
+    dir.shadow.camera.right = 20;
+    dir.shadow.camera.top = 20;
+    dir.shadow.camera.bottom = -20;
+    scene.add(dir);
+    const fill = new THREE.DirectionalLight(0x6060a0, 0.3);
+    fill.position.set(-5, 5, -5);
+    scene.add(fill);
+
+    // Ground — stone tiles
+    const groundGeo = new THREE.PlaneGeometry(40, 40, 8, 8);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2830,
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Player — container for your Blender model (see README for export steps)
+    const PLAYER_MODEL_PATH = './models/character.glb';  // put your .glb or .gltf here
+    const player = new THREE.Group();
+    player.position.set(0, 1, 0);
+    scene.add(player);
+
+    // Placeholder until model loads (optional: remove or hide after load)
+    const playerGeo = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
+    const playerMat = new THREE.MeshStandardMaterial({ color: 0x4a6a8a, roughness: 0.6, metalness: 0.2 });
+    const placeholder = new THREE.Mesh(playerGeo, playerMat);
+    placeholder.castShadow = true;
+    player.add(placeholder);
+
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(PLAYER_MODEL_PATH,
+      (gltf) => {
+        const model = gltf.scene;
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        // Adjust scale if your model is too big/small (Blender units ≈ meters)
+        model.scale.setScalar(1);
+        // If your model’s “feet” aren’t at the origin, offset it, e.g.:
+        // model.position.y = -0.9;
+        player.remove(placeholder);
+        player.add(model);
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load player model:', err);
+        if (err.message?.includes('CORS') || err.message?.includes('Failed to fetch')) {
+          console.error('⚠️ CORS error: You must run a local server! See README.md');
+          console.error('   Try: python3 server.py');
+        }
+      }
+    );
+
+    // Movement
+    const velocity = new THREE.Vector3(0, 0, 0);
+    const speed = 0.18;
+    const keys = { w: false, a: false, s: false, d: false };
+    let yaw = 0;
+    let pitch = 0.3;
+    const pointer = { x: 0, y: 0 };
+    const arenaHalf = 18;
+
+    document.addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') keys.w = true;
+      if (k === 'a') keys.a = true;
+      if (k === 's') keys.s = true;
+      if (k === 'd') keys.d = true;
+    });
+    document.addEventListener('keyup', e => {
+      const k = e.key.toLowerCase();
+      if (k === 'w') keys.w = false;
+      if (k === 'a') keys.a = false;
+      if (k === 's') keys.s = false;
+      if (k === 'd') keys.d = false;
+    });
+    document.addEventListener('pointermove', e => {
+      pointer.x = (e.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(e.clientY / innerHeight) * 2 + 1;
+    });
+    document.addEventListener('pointerlockchange', () => {
+      if (!document.pointerLockElement) pointer.x = pointer.y = 0;
+    });
+    canvas.addEventListener('click', () => {
+      if (!document.pointerLockElement) canvas.requestPointerLock();
+    });
+
+    // Echo orbs
+    const orbGeo = new THREE.SphereGeometry(0.35, 16, 16);
+    const orbs = [];
+    const orbCount = 8;
+    const positions = [
+      [6, 0.5, 4], [-7, 0.5, 5], [5, 0.5, -6], [-6, 0.5, -4],
+      [8, 0.5, 0], [-5, 0.5, 7], [0, 0.5, -8], [3, 0.5, 7]
+    ];
+    for (let i = 0; i < orbCount; i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x88ccff,
+        emissive: 0x2266aa,
+        emissiveIntensity: 0.8,
+      });
+      const orb = new THREE.Mesh(orbGeo, mat);
+      orb.position.set(positions[i][0], positions[i][1], positions[i][2]);
+      orb.userData.index = i;
+      orb.castShadow = true;
+      scene.add(orb);
+      orbs.push(orb);
+    }
+
+    let score = 0;
+    const collectRadiusSq = 1.8 * 1.8;
+
+    function updateScore() {
+      scoreEl.textContent = `Echo Orbs: ${score} / ${orbCount}`;
+    }
+
+    // Pillars for atmosphere
+    const pillarGeo = new THREE.CylinderGeometry(0.6, 0.8, 3, 6);
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x3a3540, roughness: 0.8 });
+    [[-10, 2], [10, -3], [-8, -7], [9, 6]].forEach(([x, z]) => {
+      const p = new THREE.Mesh(pillarGeo, pillarMat);
+      p.position.set(x, 1.5, z);
+      p.castShadow = true;
+      p.receiveShadow = true;
+      scene.add(p);
+    });
+
+    let last = performance.now() / 1000;
+    function loop(now) {
+      requestAnimationFrame(loop);
+      const t = now / 1000;
+      const dt = Math.min(t - last, 0.1);
+      last = t;
+
+      // Look
+      yaw -= pointer.x * 0.003;
+      pitch += pointer.y * 0.003;
+      pitch = Math.max(-0.8, Math.min(0.8, pitch));
+      const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+      velocity.set(0, 0, 0);
+      if (keys.w) velocity.add(forward);
+      if (keys.s) velocity.sub(forward);
+      if (keys.d) velocity.add(right);
+      if (keys.a) velocity.sub(right);
+      if (velocity.lengthSq() > 0) {
+        velocity.normalize().multiplyScalar(speed);
+        player.position.x += velocity.x;
+        player.position.z += velocity.z;
+      }
+
+      player.position.x = THREE.MathUtils.clamp(player.position.x, -arenaHalf, arenaHalf);
+      player.position.z = THREE.MathUtils.clamp(player.position.z, -arenaHalf, arenaHalf);
+      player.rotation.y = yaw;  // face the look direction
+
+      camera.position.lerp(
+        new THREE.Vector3(
+          player.position.x - Math.sin(yaw) * 6,
+          player.position.y + 5 + pitch * 4,
+          player.position.z - Math.cos(yaw) * 6
+        ),
+        0.08
+      );
+      camera.lookAt(player.position.x + Math.sin(yaw) * 2, player.position.y + 2, player.position.z + Math.cos(yaw) * 2);
+
+      // Collect orbs
+      for (let i = orbs.length - 1; i >= 0; i--) {
+        const orb = orbs[i];
+        orb.visible = true;
+        orb.position.y = positions[orb.userData.index][1] + Math.sin(t * 2 + i) * 0.08;
+        const dx = player.position.x - orb.position.x;
+        const dz = player.position.z - orb.position.z;
+        if (dx * dx + dz * dz < collectRadiusSq) {
+          scene.remove(orb);
+          orbs.splice(i, 1);
+          score++;
+          updateScore();
+        }
+      }
+
+      updateScore();
+
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(loop);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
