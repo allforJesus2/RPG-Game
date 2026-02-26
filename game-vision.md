@@ -22,4 +22,25 @@ The genius of Echoes of Elyria lies in how it transforms real-world fitness prin
 
 This is a game that respects your time and intelligence. The Devouring prevents mindless grinding, forcing efficient, thoughtful play. Each day-long level must be approached strategically – which routes to take, when to fight or flee, how to balance resource gathering with forward progress. The night camp system provides natural breaks for reflection and planning, while also serving as save points between challenges.
 
+## Pilotable Mecha: Advanced Training Tools
+
+In the depths of Elyria, ancient technology surfaces in the form of Pilotable Mecha – suits that can be fused with Echo Keepers. These mechs are not mere weapons but advanced training tools designed to push the limits of human (or Echo Keeper) potential.
+
+### Fusion and Abilities:
+
+- A player's chosen character can enter a mecha, gaining access to its unique abilities.
+- Mechas blend fantasy and futuristic elements, reflecting Elyria's mysterious past.
+- Each mecha has distinct stats and abilities, such as enhanced movement, special attacks, or terrain-specific interactions (e.g., climbing walls effortlessly or generating energy from the environment).
+
+### Gameplay Integration:
+
+- Mechas are an additional feature, allowing players to experiment with new strategies without replacing their core character.
+- They introduce a layer of complexity, requiring players to manage both their character's and mecha's resources (e.g., energy, stamina).
+- Mechas can interact with the environment in special ways, such as using mecha-specific tools or generating effects that alter terrain.
+
+### Narrative Role:
+
+- Mechas represent the pinnacle of ancient technology, offering a glimpse into Elyria's lost civilization.
+- They serve as advanced training tools, allowing Echo Keepers to push their limits and unlock new potential.
+
 Echoes of Elyria creates a unique gaming experience where the power fantasy comes not from arbitrary numbers increasing but from genuine mastery of its systems. Success requires understanding the interplay between training, nutrition, and recovery. Victory comes through intelligent resource management and strategic thinking. It's an RPG that teaches real-world wisdom through the lens of high fantasy, making the journey of self-improvement as engaging as saving the world.
